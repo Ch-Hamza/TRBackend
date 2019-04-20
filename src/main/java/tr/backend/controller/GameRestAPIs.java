@@ -5,14 +5,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import tr.backend.message.request.GameForm;
-import tr.backend.message.request.TeamForm;
+import tr.backend.message.request.*;
 import tr.backend.model.Game;
 import tr.backend.model.Score;
 import tr.backend.model.Team;
-import tr.backend.repository.GameRepository;
-import tr.backend.repository.ScoreRepository;
-import tr.backend.repository.TeamRepository;
+import tr.backend.repository.*;
 
 import javax.transaction.Transactional;
 import java.util.*;
@@ -31,7 +28,13 @@ public class GameRestAPIs {
     @Autowired
     ScoreRepository scoreRepository;
 
-    @GetMapping("/")
+    @Autowired
+    UserRepository userRepository;
+
+    @Autowired
+    ScoreDetailsRepository scoreDetailsRepository;
+
+    /*@GetMapping("/")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<GameForm>> allGames() {
 
@@ -54,7 +57,25 @@ public class GameRestAPIs {
                     t.setName(score.getTeam().getName());
                     t.setCompetition(score.getTeam().getCompetition());
                     t.setImage(score.getTeam().getImage());
-                    t.setScore(score.getScore());
+
+                    ScoreForm sf = new ScoreForm();
+                    sf.setScore(score.getScore());
+
+                    ScoreDetails sd = new ScoreDetails();
+                    if(score.getScore() != null) {
+                        tr.backend.model.ScoreDetails s = scoreDetailsRepository.findScoreDetailsByScoreId(score.getId());
+                        sd.setDetails(s.getScoreDetails());
+                        sd.setUsername(s.getUser().getUsername());
+                        sd.setValue(s.getScoreValue());
+                    }
+                    else {
+                        sd.setDetails("");
+                        sd.setUsername("");
+                        sd.setValue("");
+                    }
+
+                    sf.setScoreDetails(sd);
+                    t.setScore(sf);
                     teams.add(t);
                 });
 
@@ -66,9 +87,9 @@ public class GameRestAPIs {
         } catch(Exception e) {
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
-    }
+    }*/
 
-    @GetMapping("/{id}")
+    /*@GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<GameForm> getGameById(@PathVariable("id") long id) {
 
@@ -86,7 +107,26 @@ public class GameRestAPIs {
                 t.setName(score.getTeam().getName());
                 t.setCompetition(score.getTeam().getCompetition());
                 t.setImage(score.getTeam().getImage());
-                t.setScore(score.getScore());
+
+                ScoreForm sf = new ScoreForm();
+                sf.setScore(score.getScore());
+
+                ScoreDetails sd = new ScoreDetails();
+                tr.backend.model.ScoreDetails s = scoreDetailsRepository.findScoreDetailsByScoreId(score.getId());
+                if(s != null) {
+                    sd.setDetails(s.getScoreDetails());
+                    sd.setUsername(s.getUser().getUsername());
+                    sd.setValue(s.getScoreValue());
+                }
+                else {
+                    sd.setDetails("");
+                    sd.setUsername("");
+                    sd.setValue("");
+                }
+
+                sf.setScoreDetails(sd);
+                t.setScore(sf);
+
                 strTeams.add(t);
             });
             _game.setTeams(strTeams);
@@ -95,16 +135,15 @@ public class GameRestAPIs {
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-    }
+    }*/
 
     @GetMapping("/current")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('JURY') or asRole('JUDGE')")
     public ResponseEntity<GameForm> getCurrentGame() {
 
         Optional<Game> game = gameRepository.findTopByOrderByIdDesc();
         List<TeamForm> strTeams = new ArrayList<>();
         if(game.isPresent()) {
-
             GameForm _game = new GameForm();
             _game.setCompetition(game.get().getCompetition());
             _game.setState(game.get().getState());
@@ -115,7 +154,10 @@ public class GameRestAPIs {
                 t.setName(score.getTeam().getName());
                 t.setCompetition(score.getTeam().getCompetition());
                 t.setImage(score.getTeam().getImage());
-                t.setScore(score.getScore());
+
+                ScoreForm sf = new ScoreForm();
+                sf.setScore((score.getScore()));
+                t.setScore(sf);
                 strTeams.add(t);
             });
             _game.setTeams(strTeams);
@@ -153,22 +195,39 @@ public class GameRestAPIs {
     }
 
     @PutMapping("/")
+    public ResponseEntity<GameForm> updateScore(@RequestBody GameForm game) {
+
+        Optional<Game> g = gameRepository.findTopByOrderByIdDesc();
+        if(g.isPresent()) {
+            Game _g = g.get();
+
+            List<Score> scores = scoreRepository.findScoreByGame(_g);
+            scores.forEach(score -> {
+                game.getTeams().forEach(team -> {
+                    if(score.getTeam().getName().equals(team.getName())) {
+                        int oldScore = Integer.parseInt(score.getScore());
+                        int newScore = oldScore + Integer.parseInt(team.getScore().getScore());
+                        //if we want moy newscore/=nbrjury
+                        score.setScore(Integer.toString(newScore));
+                    }
+                });
+            });
+            gameRepository.save(_g);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+
+        return new ResponseEntity<>(game, HttpStatus.OK);
+    }
+
+    @PutMapping("/state")
     public ResponseEntity<GameForm> updateState(@RequestBody GameForm game) {
 
         Optional<Game> g = gameRepository.findTopByOrderByIdDesc();
         if(g.isPresent()) {
             Game _g = g.get();
-            List<Score> scores = scoreRepository.findScoreByGame(_g);
-            List<TeamForm> teams = game.getTeams();
 
             _g.setState(game.getState());
-            scores.forEach(score -> {
-                teams.forEach(team -> {
-                    if(score.getTeam().getName().equals(team.getName()))
-                        score.setScore(team.getScore());
-                });
-                scoreRepository.save(score);
-            });
 
             gameRepository.save(_g);
             return new ResponseEntity<>(game, HttpStatus.OK);

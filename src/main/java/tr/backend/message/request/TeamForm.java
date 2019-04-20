@@ -5,7 +5,7 @@ public class TeamForm {
     private String name;
     private String image;
     private String competition;
-    private String score;
+    private ScoreForm score;
 
     public TeamForm() {
     }
@@ -38,11 +38,11 @@ public class TeamForm {
         this.competition = competition;
     }
 
-    public String getScore() {
+    public ScoreForm getScore() {
         return score;
     }
 
-    public void setScore(String score) {
+    public void setScore(ScoreForm score) {
         this.score = score;
     }
 }
